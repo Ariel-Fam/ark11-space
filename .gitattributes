@@ -1,0 +1,19 @@
+# Git LFS model asset tracking
+public/models/*.glb filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.glb filter=lfs diff=lfs merge=lfs -text
+public/models/*.gltf filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.gltf filter=lfs diff=lfs merge=lfs -text
+public/models/*.bin filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.bin filter=lfs diff=lfs merge=lfs -text
+public/models/*.fbx filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.fbx filter=lfs diff=lfs merge=lfs -text
+public/models/*.obj filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.obj filter=lfs diff=lfs merge=lfs -text
+public/models/*.mtl filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.mtl filter=lfs diff=lfs merge=lfs -text
+public/models/*.dae filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.dae filter=lfs diff=lfs merge=lfs -text
+public/models/*.stl filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.stl filter=lfs diff=lfs merge=lfs -text
+public/models/*.usdz filter=lfs diff=lfs merge=lfs -text
+public/models/**/*.usdz filter=lfs diff=lfs merge=lfs -text

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 
 import { Stars, useGLTF } from "@react-three/drei";
@@ -39,6 +39,21 @@ const ENEMY_DROID_COUNT = 16;
 const ENEMY_LASER_POOL_SIZE = 64;
 const MIN_SHIP_ALTITUDE = 1.5;
 const MAX_SHIP_ALTITUDE = ELEVATION_LEVELS[ELEVATION_LEVELS.length - 1] + 12;
+const HUD_SYNC_INTERVAL_MS = 90;
+
+interface DeviceProfile {
+  antialias: boolean;
+  asteroidCount: number;
+  boostPickupCount: number;
+  canvasDpr: [number, number];
+  enemyDroidCount: number;
+  fallingHazardCount: number;
+  fuelOrbCount: number;
+  obstacleCount: number;
+  reducedEffects: boolean;
+  starCount: number;
+  toneMappingExposure: number;
+}
 
 interface FlightAudioNodes {
   masterGain: GainNode;
@@ -70,6 +85,7 @@ const defaultAudioSettings: AudioSettings = {
 };
 
 export function Game() {
+  const deviceProfile = useMemo(() => getDeviceProfile(), []);
   const [hudData, setHudData] = useState<GameData>({ ...initialGameData });
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(defaultAudioSettings);
   const gameDataRef = useRef<GameData>({ ...initialGameData });
@@ -80,38 +96,65 @@ export function Game() {
   const sfxOutputGainRef = useRef<GainNode | null>(null);
   const flightAudioRef = useRef<FlightAudioNodes | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hudSyncFrameRef = useRef<number | null>(null);
+  const lastHudSyncTimeRef = useRef(0);
   const obstacleSoundTimeRef = useRef(0);
   const shipGroupRef = useRef<THREE.Group>(null);
   const obstaclesRef = useRef<ObstacleData[]>(
-    createObstacles(OBSTACLE_COUNT, PLAY_AREA_RANGE),
+    createObstacles(deviceProfile.obstacleCount, PLAY_AREA_RANGE),
   );
   const asteroidsRef = useRef<AsteroidData[]>(
-    createAsteroids(ASTEROID_COUNT, PLAY_AREA_RANGE + 60),
+    createAsteroids(deviceProfile.asteroidCount, PLAY_AREA_RANGE + 60),
   );
   const fallingHazardsRef = useRef<FallingHazardData[]>(
-    createFallingHazards(FALLING_HAZARD_COUNT, PLAY_AREA_RANGE),
+    createFallingHazards(deviceProfile.fallingHazardCount, PLAY_AREA_RANGE),
   );
   const fuelOrbsRef = useRef<FuelOrbData[]>(
-    createFuelOrbs(FUEL_ORB_COUNT, PLAY_AREA_RANGE),
+    createFuelOrbs(deviceProfile.fuelOrbCount, PLAY_AREA_RANGE),
   );
   const amethystClustersRef = useRef<AmethystClusterData[]>(
     createAmethystClusters(AMETHYST_CLUSTER_COUNT, PLAY_AREA_RANGE),
   );
   const boostPickupsRef = useRef<BoostPickupData[]>(
-    createBoostPickups(BOOST_PICKUP_COUNT, PLAY_AREA_RANGE),
+    createBoostPickups(deviceProfile.boostPickupCount, PLAY_AREA_RANGE),
   );
   const enemyDroidsRef = useRef<EnemyDroidData[]>(
-    createEnemyDroids(ENEMY_DROID_COUNT, PLAY_AREA_RANGE),
+    createEnemyDroids(deviceProfile.enemyDroidCount, PLAY_AREA_RANGE),
   );
   const enemyLasersRef = useRef<EnemyLaserData[]>(
     createEnemyLasers(ENEMY_LASER_POOL_SIZE),
   );
   const keys = useKeyboard();
 
-  const updateGameData = useCallback((partial: Partial<GameData>) => {
-    gameDataRef.current = { ...gameDataRef.current, ...partial };
-    setHudData({ ...gameDataRef.current });
+  const syncHudData = useCallback((immediate = false) => {
+    const now = typeof performance === "undefined" ? Date.now() : performance.now();
+
+    if (immediate || now - lastHudSyncTimeRef.current >= HUD_SYNC_INTERVAL_MS) {
+      if (hudSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(hudSyncFrameRef.current);
+        hudSyncFrameRef.current = null;
+      }
+
+      lastHudSyncTimeRef.current = now;
+      setHudData({ ...gameDataRef.current });
+      return;
+    }
+
+    if (hudSyncFrameRef.current !== null) {
+      return;
+    }
+
+    hudSyncFrameRef.current = window.requestAnimationFrame(() => {
+      hudSyncFrameRef.current = null;
+      lastHudSyncTimeRef.current = typeof performance === "undefined" ? Date.now() : performance.now();
+      setHudData({ ...gameDataRef.current });
+    });
   }, []);
+
+  const updateGameData = useCallback((partial: Partial<GameData>, immediate = false) => {
+    Object.assign(gameDataRef.current, partial);
+    syncHudData(immediate);
+  }, [syncHudData]);
 
   useEffect(() => {
     audioSettingsRef.current = audioSettings;
@@ -555,6 +598,9 @@ export function Game() {
 
   useEffect(() => {
     return () => {
+      if (hudSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(hudSyncFrameRef.current);
+      }
       const context = audioContextRef.current;
       if (flightAudioRef.current && context && context.state !== "closed") {
         const { thrusterOscillator, boostOscillator, masterGain } = flightAudioRef.current;
@@ -583,35 +629,36 @@ export function Game() {
 
     gameDataRef.current = newData;
     setHudData(newData);
-    obstaclesRef.current = createObstacles(OBSTACLE_COUNT, PLAY_AREA_RANGE);
-    asteroidsRef.current = createAsteroids(ASTEROID_COUNT, PLAY_AREA_RANGE + 60);
+    lastHudSyncTimeRef.current = typeof performance === "undefined" ? Date.now() : performance.now();
+    obstaclesRef.current = createObstacles(deviceProfile.obstacleCount, PLAY_AREA_RANGE);
+    asteroidsRef.current = createAsteroids(deviceProfile.asteroidCount, PLAY_AREA_RANGE + 60);
     fallingHazardsRef.current = createFallingHazards(
-      FALLING_HAZARD_COUNT,
+      deviceProfile.fallingHazardCount,
       PLAY_AREA_RANGE,
     );
-    fuelOrbsRef.current = createFuelOrbs(FUEL_ORB_COUNT, PLAY_AREA_RANGE);
+    fuelOrbsRef.current = createFuelOrbs(deviceProfile.fuelOrbCount, PLAY_AREA_RANGE);
     amethystClustersRef.current = createAmethystClusters(
       AMETHYST_CLUSTER_COUNT,
       PLAY_AREA_RANGE,
     );
-    boostPickupsRef.current = createBoostPickups(BOOST_PICKUP_COUNT, PLAY_AREA_RANGE);
-    enemyDroidsRef.current = createEnemyDroids(ENEMY_DROID_COUNT, PLAY_AREA_RANGE);
+    boostPickupsRef.current = createBoostPickups(deviceProfile.boostPickupCount, PLAY_AREA_RANGE);
+    enemyDroidsRef.current = createEnemyDroids(deviceProfile.enemyDroidCount, PLAY_AREA_RANGE);
     enemyLasersRef.current = createEnemyLasers(ENEMY_LASER_POOL_SIZE);
 
     if (shipGroupRef.current) {
       shipGroupRef.current.position.set(0, 5, 0);
       shipGroupRef.current.rotation.set(0, 0, 0);
     }
-  }, [stopFlightAudio, syncBackgroundMusic]);
+  }, [deviceProfile, stopFlightAudio, syncBackgroundMusic]);
 
   const handlePause = useCallback(() => {
     stopFlightAudio();
-    updateGameData({ state: "paused" });
+    updateGameData({ state: "paused" }, true);
   }, [stopFlightAudio, updateGameData]);
 
   const handleResume = useCallback(() => {
     syncBackgroundMusic();
-    updateGameData({ state: "playing" });
+    updateGameData({ state: "playing" }, true);
   }, [syncBackgroundMusic, updateGameData]);
 
   const handleCollision = useCallback(() => {
@@ -633,11 +680,11 @@ export function Game() {
         shield: 0,
         state: "gameover",
         highScore: Math.max(data.highScore, data.score),
-      });
+      }, true);
       return;
     }
 
-    updateGameData({ health: nextHealth, shield: nextShield });
+    updateGameData({ health: nextHealth, shield: nextShield }, true);
   }, [stopFlightAudio, updateGameData]);
 
   const handleCheckpoint = useCallback(() => {
@@ -661,7 +708,7 @@ export function Game() {
       shield: 0,
       state: "gameover",
       highScore: Math.max(data.highScore, data.score),
-    });
+    }, true);
   }, [stopFlightAudio, updateGameData]);
 
   const handleOutOfFuel = useCallback(() => {
@@ -673,7 +720,7 @@ export function Game() {
       gameOverReason: "out_of_fuel",
       state: "gameover",
       highScore: Math.max(data.highScore, data.score),
-    });
+    }, true);
   }, [stopFlightAudio, updateGameData]);
 
   const handleShotByDroid = useCallback(() => {
@@ -687,7 +734,7 @@ export function Game() {
       shield: 0,
       state: "gameover",
       highScore: Math.max(data.highScore, data.score),
-    });
+    }, true);
   }, [playShotByDroidSound, stopFlightAudio, updateGameData]);
 
   const handleHazardDestroyed = useCallback((points = 250) => {
@@ -750,16 +797,20 @@ export function Game() {
     <div className="relative h-full w-full select-none overflow-hidden bg-black">
       <Canvas
         camera={{ fov: 70, near: 0.1, far: 1000 }}
-        gl={{ antialias: true }}
+        dpr={deviceProfile.canvasDpr}
+        gl={{
+          antialias: deviceProfile.antialias,
+          powerPreference: deviceProfile.reducedEffects ? "high-performance" : "default",
+        }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.2;
+          gl.toneMappingExposure = deviceProfile.toneMappingExposure;
         }}
         style={{ inset: 0, position: "absolute" }}
       >
         <color attach="background" args={["#9ccfff"]} />
         <Stars
-          count={5000}
+          count={deviceProfile.starCount}
           depth={100}
           factor={3}
           fade
@@ -799,6 +850,7 @@ export function Game() {
             onFuelCollected={handleFuelCollected}
             onFatalCollision={handleFatalCollision}
             onShotByDroid={handleShotByDroid}
+            reducedEffects={deviceProfile.reducedEffects}
             shipRef={shipGroupRef}
           />
         </Suspense>
@@ -846,7 +898,7 @@ interface ShipWrapperProps {
   gameData: MutableRefObject<GameData>;
   onFlightAudioChange: (thrusting: boolean, boosting: boolean, speedRatio: number) => void;
   onOutOfFuel: () => void;
-  onUpdate: (data: Partial<GameData>) => void;
+  onUpdate: (data: Partial<GameData>, immediate?: boolean) => void;
   shipGroupRef: MutableRefObject<THREE.Group | null>;
 }
 
@@ -878,7 +930,7 @@ interface SpaceshipInnerProps {
   gameData: MutableRefObject<GameData>;
   onFlightAudioChange: (thrusting: boolean, boosting: boolean, speedRatio: number) => void;
   onOutOfFuel: () => void;
-  onUpdate: (data: Partial<GameData>) => void;
+  onUpdate: (data: Partial<GameData>, immediate?: boolean) => void;
   parentRef: MutableRefObject<THREE.Group | null>;
 }
 
@@ -898,6 +950,7 @@ function SpaceshipInner({
   const flameCoreRefs = useRef<(THREE.Mesh | null)[]>([]);
   const flameOuterRefs = useRef<(THREE.Mesh | null)[]>([]);
   const flameLightRef = useRef<THREE.PointLight>(null);
+  const directionRef = useRef(new THREE.Vector3());
   const { scene } = useGLTF("/models/spaceship.glb");
 
   useFrame((state, delta) => {
@@ -979,9 +1032,7 @@ function SpaceshipInner({
     ship.rotation.x = pitchRef.current;
     ship.rotation.z = bankRef.current + rollRef.current;
 
-    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(
-      ship.quaternion,
-    );
+    const direction = directionRef.current.set(0, 0, -1).applyQuaternion(ship.quaternion);
 
     ship.position.addScaledVector(direction, velocityRef.current * d);
     if (ascend) {
@@ -1045,14 +1096,17 @@ function SpaceshipInner({
 
     onFlightAudioChange(thrust, boostingNow, Math.abs(velocityRef.current) / 180);
 
-    onUpdate({
-      fuel: nextFuel,
-      speed: Math.abs(velocityRef.current),
-      boostMeter: nextBoost,
-      amethystShieldTime: nextShieldTime,
-      isBoosting: boostingNow,
-      score,
-    });
+    onUpdate(
+      {
+        fuel: nextFuel,
+        speed: Math.abs(velocityRef.current),
+        boostMeter: nextBoost,
+        amethystShieldTime: nextShieldTime,
+        isBoosting: boostingNow,
+        score,
+      },
+      false,
+    );
   });
 
   return (
@@ -1322,4 +1376,45 @@ function getMusicVolumeLabel(volume: number) {
   }
 
   return "MED";
+}
+
+function getDeviceProfile(): DeviceProfile {
+  if (typeof window === "undefined") {
+    return {
+      antialias: true,
+      asteroidCount: ASTEROID_COUNT,
+      boostPickupCount: BOOST_PICKUP_COUNT,
+      canvasDpr: [1, 2],
+      enemyDroidCount: ENEMY_DROID_COUNT,
+      fallingHazardCount: FALLING_HAZARD_COUNT,
+      fuelOrbCount: FUEL_ORB_COUNT,
+      obstacleCount: OBSTACLE_COUNT,
+      reducedEffects: false,
+      starCount: 5000,
+      toneMappingExposure: 1.2,
+    };
+  }
+
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const compactViewport = window.innerWidth < 960;
+  const lowCoreCount =
+    typeof navigator !== "undefined" &&
+    typeof navigator.hardwareConcurrency === "number" &&
+    navigator.hardwareConcurrency > 0 &&
+    navigator.hardwareConcurrency <= 6;
+  const reducedEffects = coarsePointer || compactViewport || lowCoreCount;
+
+  return {
+    antialias: !reducedEffects,
+    asteroidCount: reducedEffects ? 64 : ASTEROID_COUNT,
+    boostPickupCount: reducedEffects ? 10 : BOOST_PICKUP_COUNT,
+    canvasDpr: reducedEffects ? [1, 1.35] : [1, 2],
+    enemyDroidCount: reducedEffects ? 10 : ENEMY_DROID_COUNT,
+    fallingHazardCount: reducedEffects ? 18 : FALLING_HAZARD_COUNT,
+    fuelOrbCount: reducedEffects ? 22 : FUEL_ORB_COUNT,
+    obstacleCount: reducedEffects ? 128 : OBSTACLE_COUNT,
+    reducedEffects,
+    starCount: reducedEffects ? 1800 : 5000,
+    toneMappingExposure: reducedEffects ? 1.05 : 1.2,
+  };
 }

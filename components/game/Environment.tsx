@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { MutableRefObject } from "react";
 
 import { useGLTF } from "@react-three/drei";
@@ -59,6 +59,7 @@ interface EnvironmentProps {
   onFatalCollision: () => void;
   onCheckpoint: () => void;
   onShotByDroid: () => void;
+  reducedEffects: boolean;
 }
 
 function generateCheckpoints(count: number, range: number) {
@@ -246,7 +247,7 @@ function doesLaserHitObstacle(
   return hitPoint !== null && hitPoint.distanceTo(start) <= distance;
 }
 
-export function Environment({
+function EnvironmentInner({
   shipRef,
   gameData,
   amethystClustersRef,
@@ -264,6 +265,7 @@ export function Environment({
   onFatalCollision,
   onCheckpoint,
   onShotByDroid,
+  reducedEffects,
 }: EnvironmentProps) {
   const checkpoints = useMemo(() => generateCheckpoints(38, 500), []);
   const planets = useMemo(() => generatePlanets(), []);
@@ -301,26 +303,38 @@ export function Environment({
     const size = bounds.getSize(new THREE.Vector3());
     return Math.max(size.x, size.y, size.z, 1);
   }, [whiteOrbScene]);
+  const whiteOrbInstances = useMemo(
+    () => decorativeWhiteOrbs.map(() => whiteOrbScene.clone()),
+    [decorativeWhiteOrbs, whiteOrbScene],
+  );
+  const amethystInstances = useMemo(
+    () => amethystClustersRef.current.map(() => amethystScene.clone()),
+    [amethystClustersRef, amethystScene],
+  );
+  const enemyDroidInstances = useMemo(
+    () => enemyDroidsRef.current.map(() => enemyUfoScene.clone()),
+    [enemyDroidsRef, enemyUfoScene],
+  );
 
   const starPositions = useMemo(() => {
-    const positions = new Float32Array(4800);
+    const positions = new Float32Array(reducedEffects ? 2400 : 4800);
 
     for (let index = 0; index < positions.length; index += 1) {
       positions[index] = (Math.random() - 0.5) * 1800;
     }
 
     return positions;
-  }, []);
+  }, [reducedEffects]);
 
   const particlePositions = useMemo(() => {
-    const positions = new Float32Array(1200);
+    const positions = new Float32Array(reducedEffects ? 600 : 1200);
 
     for (let index = 0; index < positions.length; index += 1) {
       positions[index] = (Math.random() - 0.5) * 700;
     }
 
     return positions;
-  }, []);
+  }, [reducedEffects]);
 
   useFrame((state, delta) => {
     if (!shipRef.current || gameData.current.state !== "playing") {
@@ -1070,14 +1084,14 @@ export function Environment({
         </group>
       ))}
 
-      {decorativeWhiteOrbs.map((orb) => (
+      {decorativeWhiteOrbs.map((orb, index) => (
         <group
           key={orb.id}
           position={orb.position}
           rotation={orb.rotation}
           scale={[orb.scale, orb.scale, orb.scale]}
         >
-          <primitive object={whiteOrbScene.clone()} />
+          <primitive object={whiteOrbInstances[index]} />
         </group>
       ))}
 
@@ -1251,14 +1265,16 @@ export function Environment({
               transparent
             />
           </mesh>
-          <pointLight
-            ref={(element) => {
-              fuelLightRefs.current[index] = element;
-            }}
-            color="#ff8c1a"
-            distance={18}
-            intensity={2.5}
-          />
+          {!reducedEffects || index % 2 === 0 ? (
+            <pointLight
+              ref={(element) => {
+                fuelLightRefs.current[index] = element;
+              }}
+              color="#ff8c1a"
+              distance={18}
+              intensity={2.5}
+            />
+          ) : null}
         </group>
       ))}
 
@@ -1269,15 +1285,17 @@ export function Environment({
             amethystRefs.current[index] = element;
           }}
         >
-          <primitive object={amethystScene.clone()} />
-          <pointLight
-            ref={(element) => {
-              amethystGlowRefs.current[index] = element;
-            }}
-            color="#b084ff"
-            distance={22}
-            intensity={2.4}
-          />
+          <primitive object={amethystInstances[index]} />
+          {!reducedEffects || index % 2 === 0 ? (
+            <pointLight
+              ref={(element) => {
+                amethystGlowRefs.current[index] = element;
+              }}
+              color="#b084ff"
+              distance={22}
+              intensity={2.4}
+            />
+          ) : null}
         </group>
       ))}
 
@@ -1299,14 +1317,16 @@ export function Environment({
               transparent
             />
           </mesh>
-          <pointLight
-            ref={(element) => {
-              boostPickupLightRefs.current[index] = element;
-            }}
-            color="#4dff88"
-            distance={20}
-            intensity={2.3}
-          />
+          {!reducedEffects || index % 2 === 0 ? (
+            <pointLight
+              ref={(element) => {
+                boostPickupLightRefs.current[index] = element;
+              }}
+              color="#4dff88"
+              distance={20}
+              intensity={2.3}
+            />
+          ) : null}
         </group>
       ))}
 
@@ -1318,7 +1338,7 @@ export function Environment({
             }}
             scale={(whiteOrbBaseSize / enemyUfoBaseSize) as number}
           >
-            <primitive object={enemyUfoScene.clone()} rotation={[0, Math.PI / 2, 0]} />
+            <primitive object={enemyDroidInstances[index]} rotation={[0, Math.PI / 2, 0]} />
           </group>
 
           {Array.from({ length: 4 }).map((_, shardIndex) => (
@@ -1397,7 +1417,7 @@ export function Environment({
               </mesh>
             ) : null}
 
-            {!collected ? (
+            {!collected && (!reducedEffects || checkpoint.id % 2 === 0) ? (
               <pointLight color="#d8b4fe" distance={15} intensity={3} />
             ) : null}
           </group>
@@ -1406,6 +1426,9 @@ export function Environment({
     </>
   );
 }
+
+export const Environment = memo(EnvironmentInner);
+Environment.displayName = "Environment";
 
 useGLTF.preload("/models/AmethystCluster.glb");
 useGLTF.preload("/models/ufo.glb");

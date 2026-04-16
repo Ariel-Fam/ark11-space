@@ -107,17 +107,31 @@ export function MenuScreen({
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <OverlayButton onClick={onStart} variant="primary">
+              <OverlayButton onClick={onStart} textColor="white" variant="primary">
                 LAUNCH
               </OverlayButton>
-              <OverlayLinkButton href="/controls">VIEW CONTROLS</OverlayLinkButton>
+              <OverlayLinkButton href="/controls" textColor="white">
+                VIEW CONTROLS
+              </OverlayLinkButton>
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <OverlayToggleButton active={!musicMuted} color="emerald" onClick={onToggleMusic}>
+              <OverlayToggleButton
+                active={!musicMuted}
+                color="emerald"
+                onClick={onToggleMusic}
+                textColor="white"
+              >
                 MUSIC {musicMuted ? "OFF" : "ON"}
               </OverlayToggleButton>
-              <OverlayButton onClick={onCycleMusicVolume}>VOL {musicVolumeLabel}</OverlayButton>
-              <OverlayToggleButton active={!sfxMuted} color="cyan" onClick={onToggleSfx}>
+              <OverlayButton onClick={onCycleMusicVolume} textColor="white">
+                VOL {musicVolumeLabel}
+              </OverlayButton>
+              <OverlayToggleButton
+                active={!sfxMuted}
+                color="cyan"
+                onClick={onToggleSfx}
+                textColor="white"
+              >
                 SFX {sfxMuted ? "OFF" : "ON"}
               </OverlayToggleButton>
             </div>

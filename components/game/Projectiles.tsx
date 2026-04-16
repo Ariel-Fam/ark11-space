@@ -45,7 +45,10 @@ export function Projectiles({
   const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
   const cooldownRef = useRef(0);
   const maxProjectiles = 20;
-  const forwardAxis = new THREE.Vector3(0, 0, 1);
+  const forwardAxisRef = useRef(new THREE.Vector3(0, 0, 1));
+  const spawnDirectionRef = useRef(new THREE.Vector3());
+  const spawnPositionRef = useRef(new THREE.Vector3());
+  const collisionTargetRef = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
     if (!shipRef.current || gameData.current.state !== "playing") {
@@ -62,14 +65,15 @@ export function Projectiles({
     ) {
       cooldownRef.current = 0.12;
 
-      const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(
-        shipRef.current.quaternion,
-      );
+      const direction = spawnDirectionRef.current
+        .set(0, 0, -1)
+        .applyQuaternion(shipRef.current.quaternion);
+      const position = spawnPositionRef.current
+        .copy(shipRef.current.position)
+        .addScaledVector(direction, 6);
 
       projectiles.current.push({
-        pos: shipRef.current.position
-          .clone()
-          .add(direction.clone().multiplyScalar(6)),
+        pos: position.clone(),
         dir: direction.clone(),
         life: 1.4,
       });
@@ -107,9 +111,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(
-          new THREE.Vector3(...asteroid.position),
-        );
+        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...asteroid.position));
 
         if (distance < asteroid.scale + 0.8) {
           asteroid.destroyed = true;
@@ -125,9 +127,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(
-          new THREE.Vector3(...hazard.position),
-        );
+        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...hazard.position));
 
         if (distance < hazard.scale + 0.9) {
           hazard.destroyed = true;
@@ -143,7 +143,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(new THREE.Vector3(...droid.position));
+        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...droid.position));
 
         if (distance < droid.size * 0.85) {
           droid.destroyed = true;
@@ -161,7 +161,7 @@ export function Projectiles({
       if (mesh && projectiles.current[index]) {
         const projectile = projectiles.current[index];
         mesh.position.copy(projectile.pos);
-        mesh.quaternion.setFromUnitVectors(forwardAxis, projectile.dir.clone().normalize());
+        mesh.quaternion.setFromUnitVectors(forwardAxisRef.current, projectile.dir);
         mesh.visible = true;
         return;
       }
