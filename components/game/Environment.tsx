@@ -330,6 +330,9 @@ function EnvironmentInner({
   const boostPickupRefs = useRef<(THREE.Mesh | null)[]>([]);
   const boostPickupLightRefs = useRef<(THREE.PointLight | null)[]>([]);
   const checkpointRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const checkpointPulseRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const checkpointLightRefs = useRef<(THREE.PointLight | null)[]>([]);
+  const checkpointCollectionProgressRef = useRef<number[]>([]);
   const obstacleRefs = useRef<(THREE.Mesh | null)[]>([]);
   const obstacleShardRefs = useRef<(THREE.Mesh | null)[][]>([]);
   const fallingHazardRefs = useRef<(THREE.Mesh | null)[]>([]);
@@ -509,10 +512,39 @@ function EnvironmentInner({
       });
     });
 
-    checkpointRefs.current.forEach((checkpoint) => {
+    checkpoints.forEach((checkpointData) => {
+      const checkpoint = checkpointRefs.current[checkpointData.id];
+      const pulseMesh = checkpointPulseRefs.current[checkpointData.id];
+      const checkpointLight = checkpointLightRefs.current[checkpointData.id];
+      const collected = collectedRef.current.has(checkpointData.id);
+      const currentProgress = checkpointCollectionProgressRef.current[checkpointData.id] ?? 0;
+      const nextProgress = collected ? Math.min(1, currentProgress + d * 1.8) : 0;
+      const pulse = 1 + Math.sin(elapsed * 2.2 + checkpointData.id * 0.55) * 0.04;
+
+      checkpointCollectionProgressRef.current[checkpointData.id] = nextProgress;
+
       if (checkpoint) {
+        checkpoint.visible = nextProgress < 1;
         checkpoint.rotation.y += d * 1.5;
         checkpoint.rotation.x += d * 0.5;
+        checkpoint.scale.setScalar(pulse * (1 + nextProgress * 0.12));
+
+        const material = checkpoint.material as THREE.MeshBasicMaterial;
+        material.opacity = Math.max(0, 0.8 - nextProgress * 0.8);
+        material.color.set(collected ? "#6f5a7f" : "#4b136f");
+      }
+
+      if (pulseMesh) {
+        pulseMesh.visible = nextProgress < 1;
+        pulseMesh.scale.setScalar(1 + nextProgress * 0.18);
+
+        const material = pulseMesh.material as THREE.MeshBasicMaterial;
+        material.opacity = Math.max(0, 0.45 - nextProgress * 0.45);
+      }
+
+      if (checkpointLight) {
+        checkpointLight.visible = nextProgress < 1;
+        checkpointLight.intensity = Math.max(0, 3 - nextProgress * 3);
       }
     });
 
@@ -1048,6 +1080,7 @@ function EnvironmentInner({
 
       if (distanceSquaredToPosition(shipPos, checkpoint.pos) < 36) {
         collectedRef.current.add(checkpoint.id);
+        checkpointCollectionProgressRef.current[checkpoint.id] = 0;
         onCheckpoint();
       }
     });
@@ -1472,8 +1505,6 @@ function EnvironmentInner({
       ))}
 
       {checkpoints.map((checkpoint) => {
-        const collected = collectedRef.current.has(checkpoint.id);
-
         return (
           <group key={`checkpoint-${checkpoint.id}`} position={checkpoint.pos}>
             <mesh
@@ -1482,27 +1513,32 @@ function EnvironmentInner({
               }}
             >
               <torusGeometry args={[4, 0.3, 8, 24]} />
+              <meshBasicMaterial color="#4b136f" opacity={0.8} transparent />
+            </mesh>
+
+            <mesh
+              ref={(element) => {
+                checkpointPulseRefs.current[checkpoint.id] = element;
+              }}
+            >
+              <circleGeometry args={[3.45, 24]} />
               <meshBasicMaterial
-                color={collected ? "#333333" : "#4b136f"}
-                opacity={collected ? 0.2 : 0.8}
+                color="#d8b4fe"
+                opacity={0.45}
+                side={THREE.DoubleSide}
                 transparent
               />
             </mesh>
 
-            {!collected ? (
-              <mesh>
-                <circleGeometry args={[3.45, 24]} />
-                <meshBasicMaterial
-                  color="#d8b4fe"
-                  opacity={0.45}
-                  side={THREE.DoubleSide}
-                  transparent
-                />
-              </mesh>
-            ) : null}
-
-            {!collected && (!reducedEffects || checkpoint.id % 2 === 0) ? (
-              <pointLight color="#d8b4fe" distance={15} intensity={3} />
+            {!reducedEffects || checkpoint.id % 2 === 0 ? (
+              <pointLight
+                ref={(element) => {
+                  checkpointLightRefs.current[checkpoint.id] = element;
+                }}
+                color="#d8b4fe"
+                distance={15}
+                intensity={3}
+              />
             ) : null}
           </group>
         );

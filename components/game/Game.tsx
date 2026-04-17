@@ -703,7 +703,7 @@ export function Game() {
       checkpoints: data.checkpoints + 1,
       score: data.score + 500,
       shield: Math.min(100, data.shield + 15),
-    });
+    }, true);
   }, [playCollectionSound, updateGameData]);
 
   const handleFatalCollision = useCallback(() => {
