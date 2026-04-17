@@ -810,7 +810,6 @@ export function Game() {
       >
         <color attach="background" args={["#9ccfff"]} />
         <Stars
-          color="#000000"
           count={deviceProfile.starCount}
           depth={100}
           factor={3}
