@@ -21,24 +21,53 @@ import type {
 const ENEMY_AGGRO_RANGE = 210;
 const ENEMY_LASER_SPEED = 145;
 
-function setObjectOpacity(object: THREE.Object3D, opacity: number) {
+type OpacityMaterial =
+  | THREE.MeshBasicMaterial
+  | THREE.MeshPhongMaterial
+  | THREE.MeshStandardMaterial;
+
+function isOpacityMaterial(material: THREE.Material): material is OpacityMaterial {
+  return (
+    material instanceof THREE.MeshStandardMaterial ||
+    material instanceof THREE.MeshBasicMaterial ||
+    material instanceof THREE.MeshPhongMaterial
+  );
+}
+
+function collectOpacityMaterials(object: THREE.Object3D) {
+  const materials = new Set<OpacityMaterial>();
+
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) {
       return;
     }
 
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
-    materials.forEach((material) => {
-      if (
-        material instanceof THREE.MeshStandardMaterial ||
-        material instanceof THREE.MeshBasicMaterial ||
-        material instanceof THREE.MeshPhongMaterial
-      ) {
+    const meshMaterials = Array.isArray(child.material) ? child.material : [child.material];
+    meshMaterials.forEach((material) => {
+      if (isOpacityMaterial(material)) {
         material.transparent = true;
-        material.opacity = opacity;
+        materials.add(material);
       }
     });
   });
+
+  return [...materials];
+}
+
+function setMaterialsOpacity(materials: OpacityMaterial[], opacity: number) {
+  materials.forEach((material) => {
+    material.opacity = opacity;
+  });
+}
+
+function distanceSquaredToPosition(
+  target: THREE.Vector3,
+  position: [number, number, number],
+) {
+  const dx = target.x - position[0];
+  const dy = target.y - position[1];
+  const dz = target.z - position[2];
+  return dx * dx + dy * dy + dz * dz;
 }
 
 interface EnvironmentProps {
@@ -209,26 +238,30 @@ function repositionBoostPickup(
 function deactivateEnemyLaser(laser: EnemyLaserData) {
   laser.active = false;
   laser.life = 0;
-  laser.position = [0, -200, 0];
+  laser.position[0] = 0;
+  laser.position[1] = -200;
+  laser.position[2] = 0;
 }
 
-function createObstacleBounds(obstacle: ObstacleData) {
+function setObstacleBounds(bounds: THREE.Box3, obstacle: ObstacleData) {
   const [x, y, z] = obstacle.position;
   const [width, height, depth] = obstacle.size;
 
-  return new THREE.Box3(
-    new THREE.Vector3(x - width / 2, y - height / 2, z - depth / 2),
-    new THREE.Vector3(x + width / 2, y + height / 2, z + depth / 2),
-  );
+  bounds.min.set(x - width / 2, y - height / 2, z - depth / 2);
+  bounds.max.set(x + width / 2, y + height / 2, z + depth / 2);
 }
 
 function doesLaserHitObstacle(
   start: THREE.Vector3,
   end: THREE.Vector3,
   obstacle: ObstacleData,
+  bounds: THREE.Box3,
+  travel: THREE.Vector3,
+  ray: THREE.Ray,
+  hitPoint: THREE.Vector3,
 ) {
-  const bounds = createObstacleBounds(obstacle);
-  const travel = end.clone().sub(start);
+  setObstacleBounds(bounds, obstacle);
+  travel.subVectors(end, start);
   const distance = travel.length();
 
   if (distance === 0) {
@@ -239,12 +272,26 @@ function doesLaserHitObstacle(
     return true;
   }
 
-  const hitPoint = new THREE.Ray(start.clone(), travel.normalize()).intersectBox(
-    bounds,
-    new THREE.Vector3(),
-  );
+  ray.set(start, travel.normalize());
+  const intersection = ray.intersectBox(bounds, hitPoint);
 
-  return hitPoint !== null && hitPoint.distanceTo(start) <= distance;
+  return intersection !== null && intersection.distanceTo(start) <= distance;
+}
+
+interface EnemyDroidInstanceData {
+  materials: OpacityMaterial[];
+  object: THREE.Object3D;
+}
+
+function createEnemyDroidInstance(scene: THREE.Object3D): EnemyDroidInstanceData {
+  const object = scene.clone();
+  const materials = collectOpacityMaterials(object);
+  setMaterialsOpacity(materials, 1);
+
+  return {
+    materials,
+    object,
+  };
 }
 
 function EnvironmentInner({
@@ -290,9 +337,24 @@ function EnvironmentInner({
   const fuelOrbRefs = useRef<(THREE.Mesh | null)[]>([]);
   const fuelLightRefs = useRef<(THREE.PointLight | null)[]>([]);
   const enemyDroidRefs = useRef<(THREE.Group | null)[]>([]);
+  const enemyDroidOpacityRefs = useRef<number[]>([]);
   const enemyDroidShardRefs = useRef<(THREE.Mesh | null)[][]>([]);
   const enemyLaserRefs = useRef<(THREE.Mesh | null)[]>([]);
   const forwardAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+  const scratch = useMemo(
+    () => ({
+      droidOrigin: new THREE.Vector3(),
+      droidTarget: new THREE.Vector3(),
+      hitPoint: new THREE.Vector3(),
+      laserBounds: new THREE.Box3(),
+      laserCurrentPosition: new THREE.Vector3(),
+      laserDirection: new THREE.Vector3(),
+      laserNextPosition: new THREE.Vector3(),
+      laserRay: new THREE.Ray(),
+      laserTravel: new THREE.Vector3(),
+    }),
+    [],
+  );
   const enemyUfoBaseSize = useMemo(() => {
     const bounds = new THREE.Box3().setFromObject(enemyUfoScene);
     const size = bounds.getSize(new THREE.Vector3());
@@ -312,12 +374,12 @@ function EnvironmentInner({
     [amethystClustersRef, amethystScene],
   );
   const enemyDroidInstances = useMemo(
-    () => enemyDroidsRef.current.map(() => enemyUfoScene.clone()),
+    () => enemyDroidsRef.current.map(() => createEnemyDroidInstance(enemyUfoScene)),
     [enemyDroidsRef, enemyUfoScene],
   );
 
   const starPositions = useMemo(() => {
-    const positions = new Float32Array(reducedEffects ? 2400 : 4800);
+    const positions = new Float32Array(reducedEffects ? 1800 : 3600);
 
     for (let index = 0; index < positions.length; index += 1) {
       positions[index] = (Math.random() - 0.5) * 1800;
@@ -327,7 +389,7 @@ function EnvironmentInner({
   }, [reducedEffects]);
 
   const particlePositions = useMemo(() => {
-    const positions = new Float32Array(reducedEffects ? 600 : 1200);
+    const positions = new Float32Array(reducedEffects ? 480 : 900);
 
     for (let index = 0; index < positions.length; index += 1) {
       positions[index] = (Math.random() - 0.5) * 700;
@@ -347,6 +409,17 @@ function EnvironmentInner({
     const d = Math.min(delta, 0.05);
     const elapsed = state.clock.elapsedTime;
     const hasAmethystShield = gameData.current.amethystShieldTime > 0.05;
+    const {
+      droidOrigin,
+      droidTarget,
+      hitPoint,
+      laserBounds,
+      laserCurrentPosition,
+      laserDirection,
+      laserNextPosition,
+      laserRay,
+      laserTravel,
+    } = scratch;
 
     if (invulnerabilityRef.current > 0) {
       invulnerabilityRef.current -= d;
@@ -753,27 +826,27 @@ function EnvironmentInner({
           nextX = baseX - Math.sin(movementPhase) * droid.moveRange;
         }
 
-        droid.position = [nextX, nextY, baseZ];
+        droid.position[0] = nextX;
+        droid.position[1] = nextY;
+        droid.position[2] = baseZ;
 
         if (
-          shipPos.distanceTo(
-            new THREE.Vector3(droid.position[0], droid.position[1], droid.position[2]),
-          ) < ENEMY_AGGRO_RANGE &&
+          distanceSquaredToPosition(shipPos, droid.position) < ENEMY_AGGRO_RANGE ** 2 &&
           droid.fireCooldown <= 0
         ) {
           const openLaser = enemyLasersRef.current.find((laser) => !laser.active);
 
           if (openLaser) {
-            const origin = new THREE.Vector3(
-              droid.position[0],
-              droid.position[1],
-              droid.position[2],
-            );
-            const direction = shipPos.clone().sub(origin).normalize();
+            droidOrigin.set(droid.position[0], droid.position[1], droid.position[2]);
+            droidTarget.copy(shipPos).sub(droidOrigin).normalize();
 
             openLaser.active = true;
-            openLaser.position = [origin.x, origin.y, origin.z];
-            openLaser.direction = [direction.x, direction.y, direction.z];
+            openLaser.position[0] = droidOrigin.x;
+            openLaser.position[1] = droidOrigin.y;
+            openLaser.position[2] = droidOrigin.z;
+            openLaser.direction[0] = droidTarget.x;
+            openLaser.direction[1] = droidTarget.y;
+            openLaser.direction[2] = droidTarget.z;
             openLaser.life = 2.6;
             droid.fireCooldown = 1.15 + Math.random() * 1.1;
           }
@@ -786,7 +859,10 @@ function EnvironmentInner({
           droidMesh.rotation.y += d * 1.1;
           droidMesh.rotation.z += d * 0.18;
           droidMesh.scale.set(1, 1, 1);
-          setObjectOpacity(droidMesh, 1);
+          if (enemyDroidOpacityRefs.current[index] !== 1) {
+            setMaterialsOpacity(enemyDroidInstances[index].materials, 1);
+            enemyDroidOpacityRefs.current[index] = 1;
+          }
         }
 
         shardMeshes.forEach((mesh) => {
@@ -806,7 +882,12 @@ function EnvironmentInner({
         droidMesh.rotation.x += d * 1.8;
         droidMesh.rotation.y += d * 2.2;
         droidMesh.scale.setScalar(1 - droid.destructionProgress * 0.45);
-        setObjectOpacity(droidMesh, Math.max(0, 1 - droid.destructionProgress * 1.4));
+        const opacity = Math.max(0, 1 - droid.destructionProgress * 1.4);
+
+        if (enemyDroidOpacityRefs.current[index] !== opacity) {
+          setMaterialsOpacity(enemyDroidInstances[index].materials, opacity);
+          enemyDroidOpacityRefs.current[index] = opacity;
+        }
       }
 
       shardMeshes.forEach((mesh, shardIndex) => {
@@ -847,25 +928,36 @@ function EnvironmentInner({
         return;
       }
 
-      const direction = new THREE.Vector3(...laser.direction);
-      const currentPosition = new THREE.Vector3(...laser.position);
-      const nextPosition = currentPosition.clone().addScaledVector(
-        direction,
+      laserDirection.set(laser.direction[0], laser.direction[1], laser.direction[2]);
+      laserCurrentPosition.set(laser.position[0], laser.position[1], laser.position[2]);
+      laserNextPosition.copy(laserCurrentPosition).addScaledVector(
+        laserDirection,
         ENEMY_LASER_SPEED * d,
       );
       const blockedByObstacle = obstaclesRef.current.some(
         (obstacle) =>
-          !obstacle.destroyed && doesLaserHitObstacle(currentPosition, nextPosition, obstacle),
+          !obstacle.destroyed &&
+          doesLaserHitObstacle(
+            laserCurrentPosition,
+            laserNextPosition,
+            obstacle,
+            laserBounds,
+            laserTravel,
+            laserRay,
+            hitPoint,
+          ),
       );
 
-      laser.position = [nextPosition.x, nextPosition.y, nextPosition.z];
+      laser.position[0] = laserNextPosition.x;
+      laser.position[1] = laserNextPosition.y;
+      laser.position[2] = laserNextPosition.z;
       laser.life -= d;
 
       if (blockedByObstacle) {
         deactivateEnemyLaser(laser);
       }
 
-      if (laser.active && nextPosition.distanceTo(shipPos) < 3.2) {
+      if (laser.active && laserNextPosition.distanceToSquared(shipPos) < 3.2 ** 2) {
         deactivateEnemyLaser(laser);
         if (!hasAmethystShield) {
           shotByDroid = true;
@@ -881,7 +973,7 @@ function EnvironmentInner({
 
         if (laser.active) {
           laserMesh.position.set(...laser.position);
-          laserMesh.quaternion.setFromUnitVectors(forwardAxis, direction.normalize());
+          laserMesh.quaternion.setFromUnitVectors(forwardAxis, laserDirection.normalize());
         }
       }
     });
@@ -897,9 +989,7 @@ function EnvironmentInner({
           continue;
         }
 
-        const distance = shipPos.distanceTo(new THREE.Vector3(...asteroid.position));
-
-        if (distance < asteroid.scale + 2.6) {
+        if (distanceSquaredToPosition(shipPos, asteroid.position) < (asteroid.scale + 2.6) ** 2) {
           invulnerabilityRef.current = 1.2;
           onFatalCollision();
           return;
@@ -931,9 +1021,7 @@ function EnvironmentInner({
           continue;
         }
 
-        const distance = shipPos.distanceTo(new THREE.Vector3(...hazard.position));
-
-        if (distance < hazard.scale + 2.4) {
+        if (distanceSquaredToPosition(shipPos, hazard.position) < (hazard.scale + 2.4) ** 2) {
           invulnerabilityRef.current = 1.5;
           onFatalCollision();
           return;
@@ -945,9 +1033,7 @@ function EnvironmentInner({
           continue;
         }
 
-        const distance = shipPos.distanceTo(new THREE.Vector3(...droid.position));
-
-        if (distance < droid.size * 0.9 + 2.4) {
+        if (distanceSquaredToPosition(shipPos, droid.position) < (droid.size * 0.9 + 2.4) ** 2) {
           invulnerabilityRef.current = 1.5;
           onFatalCollision();
           return;
@@ -960,69 +1046,67 @@ function EnvironmentInner({
         return;
       }
 
-      const distance = shipPos.distanceTo(new THREE.Vector3(...checkpoint.pos));
-
-      if (distance < 6) {
+      if (distanceSquaredToPosition(shipPos, checkpoint.pos) < 36) {
         collectedRef.current.add(checkpoint.id);
         onCheckpoint();
       }
     });
 
-    const collectedFuelOrbs = fuelOrbsRef.current.filter((orb) => {
+    let collectedFuelCount = 0;
+
+    fuelOrbsRef.current.forEach((orb) => {
       if (orb.collected) {
-        return false;
+        return;
       }
 
-      const distance = shipPos.distanceTo(new THREE.Vector3(...orb.position));
-      return distance < orb.scale + 2.1;
-    });
-
-    if (collectedFuelOrbs.length > 0) {
-      collectedFuelOrbs.forEach((orb) => {
+      if (distanceSquaredToPosition(shipPos, orb.position) < (orb.scale + 2.1) ** 2) {
         orb.collected = true;
         orb.collectionProgress = 0;
         orb.respawnTimer = 6 + Math.random() * 4;
-      });
-
-      onFuelCollected(collectedFuelOrbs.length);
-    }
-
-    const collectedAmethystClusters = amethystClustersRef.current.filter((cluster) => {
-      if (cluster.collected) {
-        return false;
+        collectedFuelCount += 1;
       }
-
-      const distance = shipPos.distanceTo(new THREE.Vector3(...cluster.position));
-      return distance < cluster.scale + 2.4;
     });
 
-    if (collectedAmethystClusters.length > 0) {
-      collectedAmethystClusters.forEach((cluster) => {
+    if (collectedFuelCount > 0) {
+      onFuelCollected(collectedFuelCount);
+    }
+
+    let collectedAmethystCount = 0;
+
+    amethystClustersRef.current.forEach((cluster) => {
+      if (cluster.collected) {
+        return;
+      }
+
+      if (distanceSquaredToPosition(shipPos, cluster.position) < (cluster.scale + 2.4) ** 2) {
         cluster.collected = true;
         cluster.collectionProgress = 0;
         cluster.respawnTimer = 18 + Math.random() * 6;
-      });
+        collectedAmethystCount += 1;
+      }
+    });
 
+    if (collectedAmethystCount > 0) {
       onAmethystCollected();
     }
 
-    const collectedBoostPickups = boostPickupsRef.current.filter((pickup) => {
+    let collectedBoostCount = 0;
+
+    boostPickupsRef.current.forEach((pickup) => {
       if (pickup.collected) {
-        return false;
+        return;
       }
 
-      const distance = shipPos.distanceTo(new THREE.Vector3(...pickup.position));
-      return distance < pickup.scale + 2.2;
-    });
-
-    if (collectedBoostPickups.length > 0) {
-      collectedBoostPickups.forEach((pickup) => {
+      if (distanceSquaredToPosition(shipPos, pickup.position) < (pickup.scale + 2.2) ** 2) {
         pickup.collected = true;
         pickup.collectionProgress = 0;
         pickup.respawnTimer = 10 + Math.random() * 5;
-      });
+        collectedBoostCount += 1;
+      }
+    });
 
-      onBoostCollected(collectedBoostPickups.length);
+    if (collectedBoostCount > 0) {
+      onBoostCollected(collectedBoostCount);
     }
   });
 
@@ -1054,7 +1138,7 @@ function EnvironmentInner({
         />
       </points>
 
-      <gridHelper args={[1700, 260, "#4ca7ff", "#163b78"]} position={[0, -5, 0]} />
+      <gridHelper args={[1700, 220, "#4ca7ff", "#163b78"]} position={[0, -5, 0]} />
       <fog attach="fog" args={["#8ec9ff", 230, 1250]} />
       <ambientLight color="#d8edff" intensity={0.58} />
       <directionalLight color="#eef8ff" intensity={1.35} position={[50, 80, 30]} />
@@ -1338,7 +1422,7 @@ function EnvironmentInner({
             }}
             scale={(whiteOrbBaseSize / enemyUfoBaseSize) as number}
           >
-            <primitive object={enemyDroidInstances[index]} rotation={[0, Math.PI / 2, 0]} />
+            <primitive object={enemyDroidInstances[index].object} rotation={[0, Math.PI / 2, 0]} />
           </group>
 
           {Array.from({ length: 4 }).map((_, shardIndex) => (
@@ -1429,7 +1513,3 @@ function EnvironmentInner({
 
 export const Environment = memo(EnvironmentInner);
 Environment.displayName = "Environment";
-
-useGLTF.preload("/models/AmethystCluster.glb");
-useGLTF.preload("/models/ufo.glb");
-useGLTF.preload("/models/whiteOrb.glb");

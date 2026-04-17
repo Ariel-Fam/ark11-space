@@ -96,6 +96,7 @@ export function Game() {
   const sfxOutputGainRef = useRef<GainNode | null>(null);
   const flightAudioRef = useRef<FlightAudioNodes | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
   const hudSyncFrameRef = useRef<number | null>(null);
   const lastHudSyncTimeRef = useRef(0);
   const obstacleSoundTimeRef = useRef(0);
@@ -245,13 +246,17 @@ export function Game() {
 
     const audio = new Audio("/music/binaryPalindrome.wav");
     audio.loop = true;
-    audio.preload = "auto";
+    audio.preload = "metadata";
     audio.volume = audioSettingsRef.current.musicVolume;
     musicAudioRef.current = audio;
     return audio;
   }, []);
 
   const syncBackgroundMusic = useCallback(() => {
+    if (!audioUnlockedRef.current) {
+      return;
+    }
+
     const audio = ensureMusicAudio();
     if (!audio) {
       return;
@@ -580,6 +585,7 @@ export function Game() {
 
   useEffect(() => {
     const unlockAudio = () => {
+      audioUnlockedRef.current = true;
       syncBackgroundMusic();
       const context = getAudioContext();
       if (context?.state === "suspended") {
@@ -618,6 +624,7 @@ export function Game() {
   }, []);
 
   const handleStart = useCallback(() => {
+    audioUnlockedRef.current = true;
     stopFlightAudio();
     syncBackgroundMusic();
 
@@ -657,6 +664,7 @@ export function Game() {
   }, [stopFlightAudio, updateGameData]);
 
   const handleResume = useCallback(() => {
+    audioUnlockedRef.current = true;
     syncBackgroundMusic();
     updateGameData({ state: "playing" }, true);
   }, [syncBackgroundMusic, updateGameData]);
@@ -1154,8 +1162,6 @@ function SpaceshipInner({
   );
 }
 
-useGLTF.preload("/models/spaceship.glb");
-
 function ShieldAura({
   gameData,
 }: {
@@ -1384,13 +1390,13 @@ function getDeviceProfile(): DeviceProfile {
       antialias: true,
       asteroidCount: ASTEROID_COUNT,
       boostPickupCount: BOOST_PICKUP_COUNT,
-      canvasDpr: [1, 2],
+      canvasDpr: [1, 1.75],
       enemyDroidCount: ENEMY_DROID_COUNT,
       fallingHazardCount: FALLING_HAZARD_COUNT,
       fuelOrbCount: FUEL_ORB_COUNT,
       obstacleCount: OBSTACLE_COUNT,
       reducedEffects: false,
-      starCount: 5000,
+      starCount: 4200,
       toneMappingExposure: 1.2,
     };
   }
@@ -1402,19 +1408,24 @@ function getDeviceProfile(): DeviceProfile {
     typeof navigator.hardwareConcurrency === "number" &&
     navigator.hardwareConcurrency > 0 &&
     navigator.hardwareConcurrency <= 6;
-  const reducedEffects = coarsePointer || compactViewport || lowCoreCount;
+  const lowDeviceMemory =
+    typeof navigator !== "undefined" &&
+    "deviceMemory" in navigator &&
+    typeof (navigator as Navigator & { deviceMemory?: number }).deviceMemory === "number" &&
+    ((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 0) <= 8;
+  const reducedEffects = coarsePointer || compactViewport || lowCoreCount || lowDeviceMemory;
 
   return {
     antialias: !reducedEffects,
     asteroidCount: reducedEffects ? 64 : ASTEROID_COUNT,
     boostPickupCount: reducedEffects ? 10 : BOOST_PICKUP_COUNT,
-    canvasDpr: reducedEffects ? [1, 1.35] : [1, 2],
+    canvasDpr: reducedEffects ? [1, 1.3] : [1, 1.75],
     enemyDroidCount: reducedEffects ? 10 : ENEMY_DROID_COUNT,
     fallingHazardCount: reducedEffects ? 18 : FALLING_HAZARD_COUNT,
     fuelOrbCount: reducedEffects ? 22 : FUEL_ORB_COUNT,
     obstacleCount: reducedEffects ? 128 : OBSTACLE_COUNT,
     reducedEffects,
-    starCount: reducedEffects ? 1800 : 5000,
+    starCount: reducedEffects ? 1500 : 4200,
     toneMappingExposure: reducedEffects ? 1.05 : 1.2,
   };
 }

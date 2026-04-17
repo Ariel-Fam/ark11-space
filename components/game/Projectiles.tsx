@@ -30,6 +30,16 @@ interface Projectile {
   life: number;
 }
 
+function distanceSquaredToPosition(
+  source: THREE.Vector3,
+  position: [number, number, number],
+) {
+  const dx = source.x - position[0];
+  const dy = source.y - position[1];
+  const dz = source.z - position[2];
+  return dx * dx + dy * dy + dz * dz;
+}
+
 export function Projectiles({
   shipRef,
   keys,
@@ -79,7 +89,10 @@ export function Projectiles({
       });
     }
 
-    projectiles.current = projectiles.current.filter((projectile) => {
+    let nextProjectileIndex = 0;
+
+    for (let projectileIndex = 0; projectileIndex < projectiles.current.length; projectileIndex += 1) {
+      const projectile = projectiles.current[projectileIndex];
       projectile.pos.addScaledVector(projectile.dir, 320 * d);
       projectile.life -= d;
 
@@ -111,9 +124,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...asteroid.position));
-
-        if (distance < asteroid.scale + 0.8) {
+        if (distanceSquaredToPosition(projectile.pos, asteroid.position) < (asteroid.scale + 0.8) ** 2) {
           asteroid.destroyed = true;
           asteroid.destructionProgress = 0;
           projectile.life = 0;
@@ -127,9 +138,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...hazard.position));
-
-        if (distance < hazard.scale + 0.9) {
+        if (distanceSquaredToPosition(projectile.pos, hazard.position) < (hazard.scale + 0.9) ** 2) {
           hazard.destroyed = true;
           hazard.destructionProgress = 0;
           projectile.life = 0;
@@ -143,9 +152,7 @@ export function Projectiles({
           continue;
         }
 
-        const distance = projectile.pos.distanceTo(collisionTargetRef.current.set(...droid.position));
-
-        if (distance < droid.size * 0.85) {
+        if (distanceSquaredToPosition(projectile.pos, droid.position) < (droid.size * 0.85) ** 2) {
           droid.destroyed = true;
           droid.destructionProgress = 0;
           projectile.life = 0;
@@ -154,8 +161,13 @@ export function Projectiles({
         }
       }
 
-      return projectile.life > 0;
-    });
+      if (projectile.life > 0) {
+        projectiles.current[nextProjectileIndex] = projectile;
+        nextProjectileIndex += 1;
+      }
+    }
+
+    projectiles.current.length = nextProjectileIndex;
 
     meshRefs.current.forEach((mesh, index) => {
       if (mesh && projectiles.current[index]) {
