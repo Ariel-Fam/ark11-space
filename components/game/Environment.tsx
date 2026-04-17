@@ -1033,7 +1033,7 @@ function EnvironmentInner({
           <bufferAttribute attach="attributes-position" args={[starPositions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          color="#ffffff"
+          color="#000000"
           opacity={0.72}
           size={1.1}
           sizeAttenuation
@@ -1046,7 +1046,7 @@ function EnvironmentInner({
           <bufferAttribute attach="attributes-position" args={[particlePositions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          color="#76c7ff"
+          color="#000000"
           opacity={0.35}
           size={0.45}
           sizeAttenuation
