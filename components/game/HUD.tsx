@@ -145,7 +145,7 @@ export function HUD({
       <div className="absolute bottom-8 right-8 rounded-3xl border border-white/20 bg-white/16 px-5 py-4 text-right shadow-[0_16px_40px_rgba(0,0,0,0.16)] backdrop-blur-md">
         <div className="mb-3">
           <div className="mb-1 tracking-widest text-black/70" style={{ fontSize: "10px" }}>
-            HULL
+            HEALTH
           </div>
           <div className="ml-auto h-2 w-48 overflow-hidden rounded-full bg-white/10">
             <div

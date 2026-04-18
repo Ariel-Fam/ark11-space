@@ -31,8 +31,9 @@ export function MenuScreen({
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="text-center">
+    <div className="absolute inset-0 z-10 overflow-y-auto bg-black/70 backdrop-blur-sm">
+      <div className="flex min-h-full items-start justify-center px-6 py-8 md:items-center md:py-12">
+        <div className="w-full max-w-5xl text-center">
         {data.state === "menu" ? (
           <>
             <h1
@@ -57,56 +58,8 @@ export function MenuScreen({
                 priority
               />
             </div>
-            <div className="mx-auto mb-8 grid max-w-3xl gap-4 text-left md:grid-cols-3">
-              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-2 tracking-[0.2em] text-cyan-300/70" style={{ fontSize: "10px" }}>
-                  FLIGHT
-                </div>
-                <p className="text-white/80" style={{ fontSize: "12px" }}>
-                  Traverse 9 elevation lanes, weave through dense obstacles, and stay ahead of droid patrols.
-                </p>
-              </div>
-              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-2 tracking-[0.2em] text-emerald-300/70" style={{ fontSize: "10px" }}>
-                  PICKUPS
-                </div>
-                <p className="text-white/80" style={{ fontSize: "12px" }}>
-                  Orange refuels fuel, green gives your boost meter a quick top-up, and amethyst grants a 30 second invulnerability shield.
-                </p>
-              </div>
-              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-2 tracking-[0.2em] text-violet-300/70" style={{ fontSize: "10px" }}>
-                  COMBAT
-                </div>
-                <p className="text-white/80" style={{ fontSize: "12px" }}>
-                  Fire on droids before they line up shots, use boost to reposition, and chain checkpoints for score.
-                </p>
-              </div>
-            </div>
-            <div className="mx-auto mb-8 grid max-w-3xl gap-3 rounded-3xl border border-white/15 bg-white/10 p-4 text-left backdrop-blur-md md:grid-cols-2">
-              <div>
-                <div className="mb-2 tracking-[0.2em] text-white/45" style={{ fontSize: "10px" }}>
-                  CONTROLS
-                </div>
-                <div className="space-y-1 text-white/70" style={{ fontSize: "11px" }}>
-                  <p>W / Up thrusts, S / Down brakes, and A / D or Left / Right turns the ship.</p>
-                  <p>Q rolls left, E rolls right, while R / F climbs or drops between elevation lanes.</p>
-                  <p>Press B while moving forward to engage boost, and let the meter recharge automatically when it is not in use.</p>
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 tracking-[0.2em] text-white/45" style={{ fontSize: "10px" }}>
-                  COMBAT
-                </div>
-                <div className="space-y-1 text-white/70" style={{ fontSize: "11px" }}>
-                  <p>Press V or Space to fire lasers at obstacles, falling hazards, and enemy droids.</p>
-                  <p>Orange pickups restore fuel, green pickups top up boost, and purple amethyst grants a 30 second shield.</p>
-                  <p>Use intact obstacles as cover because droid laser fire now gets blocked by solid terrain.</p>
-                  <p>Reach checkpoints for score, survive droid ambushes, and use ESC to pause or resume the run.</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
+
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
               <OverlayButton onClick={onStart} textColor="white" variant="primary">
                 LAUNCH
               </OverlayButton>
@@ -135,6 +88,60 @@ export function MenuScreen({
                 SFX {sfxMuted ? "OFF" : "ON"}
               </OverlayToggleButton>
             </div>
+            <div className="mx-auto mt-8 mb-8 grid max-w-3xl gap-4 text-left md:grid-cols-3">
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-2 tracking-[0.2em] text-cyan-300/70" style={{ fontSize: "10px" }}>
+                  FLIGHT
+                </div>
+                <p className="font-sans text-white/80" style={{ fontSize: "13px", lineHeight: 1.55 }}>
+                  Traverse 9 elevation lanes, weave through dense obstacles, and stay ahead of droid patrols.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-2 tracking-[0.2em] text-emerald-300/70" style={{ fontSize: "10px" }}>
+                  PICKUPS
+                </div>
+                <p className="font-sans text-white/80" style={{ fontSize: "13px", lineHeight: 1.55 }}>
+                  Orange refuels fuel, green gives your boost meter a quick top-up, and amethyst grants a 30 second invulnerability shield.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-2 tracking-[0.2em] text-violet-300/70" style={{ fontSize: "10px" }}>
+                  COMBAT
+                </div>
+                <p className="font-sans text-white/80" style={{ fontSize: "13px", lineHeight: 1.55 }}>
+                  Fire on droids before they line up shots, use boost to reposition, and watch for patrols spread across rows and elevation lanes. Some droids hover still, while others drift vertically or sweep side to side.
+                </p>
+              </div>
+            </div>
+            <div className="mx-auto mb-8 grid max-w-3xl gap-4 text-left md:grid-cols-2">
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-2 tracking-[0.2em] text-white/45" style={{ fontSize: "10px" }}>
+                  CONTROLS
+                </div>
+                <div className="font-sans space-y-2 text-white/76" style={{ fontSize: "13px", lineHeight: 1.55 }}>
+                  <p>W / Up thrusts, S / Down brakes, and A / D or Left / Right turns the ship.</p>
+                  <p>Q rolls left, E rolls right, while R / F climbs or drops between elevation lanes.</p>
+                  <p>Press B while moving forward to engage boost, and let the meter recharge automatically when it is not in use.</p>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-2 tracking-[0.2em] text-white/45" style={{ fontSize: "10px" }}>
+                  COMBAT
+                </div>
+                <div className="font-sans space-y-2 text-white/76" style={{ fontSize: "13px", lineHeight: 1.55 }}>
+                  <p>Press V or Space to fire lasers at obstacles, falling hazards, and enemy droids.</p>
+                  <p>Droids are positioned in staggered rows ahead of you across the corridor and altitude lanes, so threat direction changes as you climb or descend.</p>
+                  <p>Patrol types include stationary sentries, vertical movers, and side-to-side sweepers that can drag their firing line across your route.</p>
+                  <p>Blue shield absorbs 4 droid laser hits, then the green health bar can take 3 more before SHOT BY DROID triggers.</p>
+                  <p>Orange pickups restore fuel, green pickups top up boost, and purple amethyst grants a 30 second shield timer.</p>
+                  <p>Use intact obstacles as cover because droid laser fire now gets blocked by solid terrain.</p>
+                  <p>Collisions still destroy the ship instantly, so the health system only applies to droid laser shots.</p>
+                  <p>Reach checkpoints for score, survive droid ambushes, and use ESC to pause or resume the run.</p>
+                </div>
+              </div>
+            </div>
+            
           </>
         ) : null}
 
@@ -231,6 +238,7 @@ export function MenuScreen({
             </div>
           </>
         ) : null}
+        </div>
       </div>
     </div>
   );

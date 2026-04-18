@@ -53,6 +53,44 @@ const survivalTips = [
   "Solid terrain blocks hostile laser fire, so obstacles can be used as cover when droids line up shots.",
 ];
 
+const healthSystemRules = [
+  {
+    label: "Shield Bar",
+    detail: "The blue shield bar absorbs 4 droid laser hits total before it is empty.",
+  },
+  {
+    label: "Health Bar",
+    detail: "Once shield is gone, the green health bar can absorb 3 more droid laser hits.",
+  },
+  {
+    label: "Collision Rule",
+    detail: "Asteroids, terrain, and other collision deaths still destroy the ship instantly regardless of bars.",
+  },
+  {
+    label: "Visual Cue",
+    detail: "A blue shield marker appears above the ship while shield is active and disappears when the bar is depleted.",
+  },
+];
+
+const droidSystemRules = [
+  {
+    label: "Spawn Layout",
+    detail: "Droids are placed in spaced rows ahead of the ship, distributed across corridor width and the elevation lanes.",
+  },
+  {
+    label: "Movement Types",
+    detail: "Expect four patrol styles: stationary, vertical rise-and-drop, left-to-right sweep, and right-to-left sweep.",
+  },
+  {
+    label: "Positioning",
+    detail: "Changing elevation can move you into or out of a droid lane, so R and F are key for breaking line-of-fire.",
+  },
+  {
+    label: "Pressure Pattern",
+    detail: "Because droids are staggered by depth, you often face overlapping angles instead of a single head-on attack.",
+  },
+];
+
 export default function ControlsPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),transparent_28%),linear-gradient(180deg,#020617_0%,#050816_48%,#020617_100%)] px-6 py-10 text-white">
@@ -70,7 +108,7 @@ export default function ControlsPage() {
             </h1>
             <p className="mt-4 max-w-2xl text-white/68" style={{ fontSize: "15px", lineHeight: 1.8 }}>
               Everything you need to fly clean lines, survive droid pressure, manage your fuel, and
-              keep full control over the game audio while you play.
+              keep full control over the game audio while you play, including how shield and health absorb droid laser damage.
             </p>
           </div>
           <Link
@@ -199,6 +237,68 @@ export default function ControlsPage() {
           </div>
         </section>
 
+        <section className="mb-8 rounded-[32px] border border-blue-400/18 bg-blue-400/8 p-8 backdrop-blur-md">
+          <p className="mb-3 tracking-[0.32em] text-blue-300/72" style={{ fontSize: "11px" }}>
+            HEALTH SYSTEM
+          </p>
+          <h2
+            className="mb-4 text-2xl tracking-[0.12em] text-white"
+            style={{ fontFamily: "'Orbitron', monospace" }}
+          >
+            How laser damage is applied
+          </h2>
+          <p className="mb-6 max-w-3xl text-white/68" style={{ fontSize: "14px", lineHeight: 1.8 }}>
+            The bottom-right HUD shows two separate survivability bars. Shield and health only react to
+            enemy droid laser shots, while physical collisions still count as instant destruction.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {healthSystemRules.map((rule) => (
+              <div
+                key={rule.label}
+                className="rounded-[24px] border border-white/10 bg-slate-950/44 p-5"
+              >
+                <div className="mb-3 text-blue-200/85" style={{ fontSize: "11px", letterSpacing: "0.3em" }}>
+                  {rule.label}
+                </div>
+                <p className="text-white/68" style={{ fontSize: "13px", lineHeight: 1.8 }}>
+                  {rule.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-8 rounded-[32px] border border-violet-400/18 bg-violet-400/8 p-8 backdrop-blur-md">
+          <p className="mb-3 tracking-[0.32em] text-violet-300/72" style={{ fontSize: "11px" }}>
+            DROID PATROLS
+          </p>
+          <h2
+            className="mb-4 text-2xl tracking-[0.12em] text-white"
+            style={{ fontFamily: "'Orbitron', monospace" }}
+          >
+            How droids move and where they appear
+          </h2>
+          <p className="mb-6 max-w-3xl text-white/68" style={{ fontSize: "14px", lineHeight: 1.8 }}>
+            Droid encounters are not random single ambushes. Patrols are spread through the run in organized
+            rows, with different movement patterns designed to pressure both horizontal steering and elevation shifts.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {droidSystemRules.map((rule) => (
+              <div
+                key={rule.label}
+                className="rounded-[24px] border border-white/10 bg-slate-950/44 p-5"
+              >
+                <div className="mb-3 text-violet-200/85" style={{ fontSize: "11px", letterSpacing: "0.3em" }}>
+                  {rule.label}
+                </div>
+                <p className="text-white/68" style={{ fontSize: "13px", lineHeight: 1.8 }}>
+                  {rule.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="rounded-[32px] border border-cyan-400/16 bg-cyan-400/8 p-8 backdrop-blur-md">
           <p className="mb-3 tracking-[0.32em] text-cyan-300/72" style={{ fontSize: "11px" }}>
             AT-A-GLANCE MAP
@@ -210,6 +310,10 @@ export default function ControlsPage() {
             <QuickCard label="Fire" value="V / Space" />
             <QuickCard label="Boost" value="B while thrusting" />
             <QuickCard label="Pause" value="Esc" />
+            <QuickCard label="Shield" value="4 droid laser hits" />
+            <QuickCard label="Health" value="3 droid laser hits" />
+            <QuickCard label="Droid Types" value="Still, vertical, side sweep" />
+            <QuickCard label="Droid Layout" value="Rows across width and elevation" />
             <QuickCard label="Music" value="HUD or pause toggle" />
             <QuickCard label="SFX" value="HUD or pause toggle" />
           </div>

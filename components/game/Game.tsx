@@ -40,6 +40,8 @@ const ENEMY_LASER_POOL_SIZE = 64;
 const MIN_SHIP_ALTITUDE = 1.5;
 const MAX_SHIP_ALTITUDE = ELEVATION_LEVELS[ELEVATION_LEVELS.length - 1] + 12;
 const HUD_SYNC_INTERVAL_MS = 90;
+const SHIELD_HIT_VALUE = 25;
+const HEALTH_HIT_VALUE = 100 / 3;
 
 interface DeviceProfile {
   antialias: boolean;
@@ -671,28 +673,12 @@ export function Game() {
 
   const handleCollision = useCallback(() => {
     const data = gameDataRef.current;
-    let nextShield = data.shield;
-    let nextHealth = data.health;
-
-    if (nextShield > 0) {
-      nextShield = Math.max(0, nextShield - 25);
-    } else {
-      nextHealth = Math.max(0, nextHealth - 20);
-    }
-
-    if (nextHealth <= 0) {
-      stopFlightAudio();
-      updateGameData({
-        gameOverReason: "destroyed",
-        health: 0,
-        shield: 0,
-        state: "gameover",
-        highScore: Math.max(data.highScore, data.score),
-      }, true);
-      return;
-    }
-
-    updateGameData({ health: nextHealth, shield: nextShield }, true);
+    stopFlightAudio();
+    updateGameData({
+      gameOverReason: "destroyed",
+      state: "gameover",
+      highScore: Math.max(data.highScore, data.score),
+    }, true);
   }, [stopFlightAudio, updateGameData]);
 
   const handleCheckpoint = useCallback(() => {
@@ -702,7 +688,6 @@ export function Game() {
     updateGameData({
       checkpoints: data.checkpoints + 1,
       score: data.score + 500,
-      shield: Math.min(100, data.shield + 15),
     }, true);
   }, [playCollectionSound, updateGameData]);
 
@@ -712,8 +697,6 @@ export function Game() {
     stopFlightAudio();
     updateGameData({
       gameOverReason: "destroyed",
-      health: 0,
-      shield: 0,
       state: "gameover",
       highScore: Math.max(data.highScore, data.score),
     }, true);
@@ -733,15 +716,27 @@ export function Game() {
 
   const handleShotByDroid = useCallback(() => {
     const data = gameDataRef.current;
+    const nextShield = Math.max(0, data.shield - SHIELD_HIT_VALUE);
+    const shieldWasActive = data.shield > 0;
+    const nextHealth = shieldWasActive ? data.health : Math.max(0, data.health - HEALTH_HIT_VALUE);
 
     playShotByDroidSound();
-    stopFlightAudio();
+
+    if (nextHealth <= 0) {
+      stopFlightAudio();
+      updateGameData({
+        gameOverReason: "shot_by_droid",
+        health: 0,
+        shield: nextShield,
+        state: "gameover",
+        highScore: Math.max(data.highScore, data.score),
+      }, true);
+      return;
+    }
+
     updateGameData({
-      gameOverReason: "shot_by_droid",
-      health: 0,
-      shield: 0,
-      state: "gameover",
-      highScore: Math.max(data.highScore, data.score),
+      health: nextHealth,
+      shield: nextShield,
     }, true);
   }, [playShotByDroidSound, stopFlightAudio, updateGameData]);
 
@@ -920,6 +915,7 @@ function ShipWrapper({
 }: ShipWrapperProps) {
   return (
     <group ref={shipGroupRef}>
+      <ShieldStatusIcon gameData={gameData} />
       <ShieldAura gameData={gameData} />
       <SpaceshipInner
         gameData={gameData}
@@ -1202,6 +1198,53 @@ function ShieldAura({
         transparent
       />
     </mesh>
+  );
+}
+
+function ShieldStatusIcon({
+  gameData,
+}: {
+  gameData: MutableRefObject<GameData>;
+}) {
+  const iconRef = useRef<THREE.Group>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!iconRef.current || !glowRef.current) {
+      return;
+    }
+
+    const active = gameData.current.state === "playing" && gameData.current.shield > 0;
+    iconRef.current.visible = active;
+
+    if (!active) {
+      return;
+    }
+
+    const pulse = 1 + Math.sin(clock.elapsedTime * 4.4) * 0.08;
+    iconRef.current.position.y = 8.7 + Math.sin(clock.elapsedTime * 2.2) * 0.12;
+    iconRef.current.rotation.y += 0.018;
+    iconRef.current.scale.setScalar(pulse);
+
+    const glowMaterial = glowRef.current.material as THREE.MeshBasicMaterial;
+    glowMaterial.opacity = 0.24 + Math.sin(clock.elapsedTime * 5.2) * 0.05;
+  });
+
+  return (
+    <group ref={iconRef} position={[0, 8.7, 0]} visible={false}>
+      <mesh ref={glowRef}>
+        <circleGeometry args={[1.35, 24]} />
+        <meshBasicMaterial color="#2563eb" opacity={0.28} transparent />
+      </mesh>
+      <mesh position={[0, 0, 0.03]}>
+        <ringGeometry args={[1.05, 1.35, 28]} />
+        <meshBasicMaterial color="#3b82f6" opacity={0.98} side={THREE.DoubleSide} transparent />
+      </mesh>
+      <mesh position={[0, 0, 0.06]} scale={[0.7, 1, 1]} rotation={[0, 0, Math.PI / 4]}>
+        <circleGeometry args={[0.82, 4]} />
+        <meshBasicMaterial color="#60a5fa" opacity={0.95} transparent />
+      </mesh>
+    </group>
   );
 }
 
